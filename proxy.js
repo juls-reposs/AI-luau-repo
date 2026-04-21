@@ -1,28 +1,25 @@
 /**
- * proxy.js — OpenAI Proxy Server for Roblox AI NPC
- *
- * Roblox cannot call OpenAI directly due to CORS and domain restrictions.
- * This tiny Node.js server acts as a middleman.
+ * proxy.js — Gemini Proxy Server for Roblox AI NPC
  *
  * SETUP:
- *   1. npm install express openai cors
- *   2. Set your OPENAI_API_KEY as an environment variable
+ *   1. npm install express @google/generative-ai cors
+ *   2. Set your GEMINI_API_KEY as an environment variable
+ *      Get a free key at: https://aistudio.google.com/app/apikey
  *   3. node proxy.js
- *   4. Deploy to Railway, Render, Fly.io, or any Node host
+ *   4. Deploy to Render.com
  *   5. Paste your deployed URL into your script as PROXY_URL
  */
 
 const express = require("express");
-const { OpenAI } = require("openai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const cors = require("cors");
 
 const app  = express();
 const port = process.env.PORT || 3000;
 
-// ── OpenAI client ──────────────────────────────────────────────────────────────
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Set this in your hosting environment
-});
+// ── Gemini client ──────────────────────────────────────────────────────────────
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // free tier model
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 app.use(cors());
@@ -41,33 +38,39 @@ app.post("/chat", async (req, res) => {
     return res.status(400).json({ error: "Missing or invalid 'history' field." });
   }
 
-  // Build the messages array for OpenAI
-  const messages = [
-    { role: "system", content: system || "You are a helpful NPC in a Roblox game." },
-    ...history.map((msg) => ({
-      role: msg.role,       // "user" or "assistant"
-      content: msg.content,
-    })),
-  ];
+  // Gemini uses "user" and "model" roles (not "assistant")
+  // Also requires alternating user/model turns, starting with user
+  const geminiHistory = history.slice(0, -1).map((msg) => ({
+    role: msg.role === "assistant" ? "model" : "user",
+    parts: [{ text: msg.content }],
+  }));
+
+  // The last message is the current user input
+  const lastMessage = history[history.length - 1];
+  const userMessage = lastMessage ? lastMessage.content : "";
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",   // Fast and cheap; swap for "gpt-4o" for better quality
-      messages: messages,
-      max_tokens: 120,         // Keep NPC replies short
-      temperature: 0.85,       // Slight creativity
+    const chat = model.startChat({
+      history: geminiHistory,
+      systemInstruction: system || "You are a helpful NPC in a Roblox game.",
+      generationConfig: {
+        maxOutputTokens: 120,
+        temperature: 0.85,
+      },
     });
 
-    const reply = completion.choices[0]?.message?.content?.trim() || "...";
+    const result = await chat.sendMessage(userMessage);
+    const reply = result.response.text().trim() || "...";
+
     res.json({ reply });
 
   } catch (err) {
     console.error("[Proxy Error]", err.message);
-    res.status(500).json({ error: "OpenAI request failed.", detail: err.message });
+    res.status(500).json({ error: "Gemini request failed.", detail: err.message });
   }
 });
 
 // ── Start server ───────────────────────────────────────────────────────────────
 app.listen(port, () => {
-  console.log(`🤖 AI NPC Proxy running on port ${port}`);
+  console.log(`🤖 AI NPC Proxy (Gemini) running on port ${port}`);
 });
