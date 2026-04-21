@@ -7,7 +7,7 @@
  *      Get a free key at: https://console.groq.com
  *   3. node proxy.js
  *   4. Deploy to Render.com
- *   5. Paste your deployed URL into your lua script as PROXY_URL
+ *   5. Paste your deployed URL into NPCAIScript.lua as PROXY_URL
  */
 
 const express = require("express");
@@ -50,7 +50,7 @@ app.post("/chat", async (req, res) => {
 
   try {
     const completion = await groq.chat.completions.create({
-      model: "llama3-8b-8192",  // free and fast
+      model: "llama-3.1-8b-instant",
       messages: messages,
       max_tokens: 120,
       temperature: 0.85,
