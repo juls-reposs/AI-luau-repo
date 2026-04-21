@@ -52,7 +52,10 @@ app.post("/chat", async (req, res) => {
   try {
     const chat = model.startChat({
       history: geminiHistory,
-      systemInstruction: system || "You are a helpful NPC in a Roblox game.",
+      systemInstruction: {
+        role: "user",
+        parts: [{ text: system || "You are a helpful NPC in a Roblox game." }],
+      },
       generationConfig: {
         maxOutputTokens: 120,
         temperature: 0.85,
